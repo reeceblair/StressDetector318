@@ -1,0 +1,127 @@
+#include "MKL25Z4.h" // Kinetis MCU header for FRDM-KL25Z
+#include "fsl_i2c.h"
+#include "fsl_port.h"
+#include "fsl_gpio.h"
+#include "fsl_clock.h"
+#include "fsl_delay.h"
+
+// I2C address of the MAX30102
+#define MAX30102_ADDR 0x57
+
+// Seven Segment display pin configuration (Example)
+#define SEGMENT_1_PIN (1U)
+#define SEGMENT_2_PIN (2U)
+#define SEGMENT_3_PIN (3U)
+#define SEGMENT_4_PIN (4U)
+
+// LED pin configuration (Example)
+#define LED_PIN (5U) // Assume LED is connected to GPIOB pin 5
+
+// Function prototypes
+void I2C_Init(void);
+void MAX30102_Init(void);
+uint8_t MAX30102_ReadData(uint8_t reg);
+void DisplayHeartRate(uint8_t heartRate);
+void LED_Init(void);
+void LED_Blink(void);
+void LED_BreathingRoutine(void);
+
+int main(void)
+{
+    // Initialize I2C and MAX30102
+    I2C_Init();
+    MAX30102_Init();
+    LED_Init(); // Initialize the LED
+
+    uint8_t heartRate = 0;
+    bool breathingRoutineStarted = false;
+
+    while (1)
+    {
+        // Read heart rate from MAX30102 (this is simplified)
+        heartRate = MAX30102_ReadData(0x04);  // Placeholder, replace with actual data reading logic
+        
+        // Display heart rate on 7-segment display
+        DisplayHeartRate(heartRate);
+
+        // If heart rate exceeds 100 BPM, start the LED blink and breathing routine
+        if (heartRate > 100 && !breathingRoutineStarted)
+        {
+            LED_Blink();
+            breathingRoutineStarted = true;  // Start the breathing routine after blinking
+        }
+
+        // If breathing routine has started, run the breathing guide (4s ON/OFF)
+        if (breathingRoutineStarted)
+        {
+            LED_BreathingRoutine();
+        }
+    }
+}
+
+void I2C_Init(void)
+{
+    i2c_master_config_t masterConfig;
+    I2C_MasterGetDefaultConfig(&masterConfig);
+    I2C_MasterInit(I2C0, &masterConfig, CLOCK_GetFreq(kCLOCK_BusClk));
+
+    // Configure I2C pins (SCL, SDA) for FRDM-KL25Z
+    PORT_SetPinMux(PORTB, 2U, kPORT_MuxAlt2); // SCL
+    PORT_SetPinMux(PORTB, 3U, kPORT_MuxAlt2); // SDA
+}
+
+void MAX30102_Init(void)
+{
+    // Initialize MAX30102 sensor (just a placeholder, actual setup depends on MAX30102 specs)
+    uint8_t initData = 0x01;
+    I2C_WriteBlocking(I2C0, MAX30102_ADDR, &initData, 1, false);
+}
+
+uint8_t MAX30102_ReadData(uint8_t reg)
+{
+    uint8_t data;
+    I2C_MasterReadBlocking(I2C0, MAX30102_ADDR, &data, 1);
+    return data;
+}
+
+void DisplayHeartRate(uint8_t heartRate)
+{
+    // Display the heart rate on 7-segment display (simplified logic)
+    uint8_t segments[] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F}; // Segment data for 0-9
+    uint8_t digit1 = heartRate / 10;  // Tens place
+    uint8_t digit2 = heartRate % 10;  // Ones place
+
+    // Assuming 4-digit 7-segment display connected to MCU
+    GPIO_WritePinOutput(GPIOB, SEGMENT_1_PIN, segments[digit1]);
+    GPIO_WritePinOutput(GPIOB, SEGMENT_2_PIN, segments[digit2]);
+}
+
+void LED_Init(void)
+{
+    // Initialize LED GPIO pin (e.g., GPIOB pin 5)
+    CLOCK_EnableClock(kCLOCK_PortB); // Enable clock to Port B
+    PORT_SetPinMux(PORTB, LED_PIN, kPORT_MuxAsGpio); // Set pin to GPIO
+    GPIO_PinInit(GPIOB, LED_PIN, &(gpio_pin_config_t){kGPIO_DigitalOutput, 0}); // Set as output, initial state LOW
+}
+
+void LED_Blink(void)
+{
+    // Blink the LED when heart rate exceeds 100 BPM (5 times)
+    for (int i = 0; i < 5; i++) // Blink 5 times as an example
+    {
+        GPIO_SetPinsOutput(GPIOB, 1U << LED_PIN);  // Turn LED ON
+        for (volatile int i = 0; i < 1000000; i++);  // Delay
+        GPIO_ClearPinsOutput(GPIOB, 1U << LED_PIN); // Turn LED OFF
+        for (volatile int i = 0; i < 1000000; i++);  // Delay
+    }
+}
+
+void LED_BreathingRoutine(void)
+{
+    // After the initial blink, alternate the LED ON and OFF for 4 seconds each
+    GPIO_SetPinsOutput(GPIOB, 1U << LED_PIN);  // LED ON (Inhale)
+    for (volatile int i = 0; i < 4000000; i++);  // Delay for 4 seconds
+
+    GPIO_ClearPinsOutput(GPIOB, 1U << LED_PIN); // LED OFF (Exhale)
+    for (volatile int i = 0; i < 4000000; i++);  // Delay for 4 seconds
+}
