@@ -1,0 +1,17 @@
+If & segment display is not working we may have to change it to the following code:
+
+
+// Pin definitions for the 7-segment display segments (a to g)
+#define SEG_A_PIN (0U)
+#define SEG_B_PIN (1U)
+#define SEG_C_PIN (2U)
+#define SEG_D_PIN (3U)
+#define SEG_E_PIN (4U)
+#define SEG_F_PIN (5U)
+#define SEG_G_PIN (6U)
+
+// Pin definitions for the 4 digits of the 7-segment display
+#define DIGIT_1_PIN (7U)
+#define DIGIT_2_PIN (8U)
+#define DIGIT_3_PIN (9U)
+#define DIGIT_4_PIN (10U)
