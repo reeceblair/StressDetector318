@@ -1,0 +1,82 @@
+#include "fsl_debug_console.h"
+#include "fsl_adc.h"
+#include "fsl_gpio.h"
+#include "board.h"
+#include "pin_mux.h"
+#include "fsl_timer.h"
+
+#define LED1_GPIO GPIO
+#define LED1_PIN 11  // Check your board schematic
+#define LED2_GPIO GPIO
+#define LED2_PIN 12  // Change to your second LED pin
+
+// ... [previous ADC and heartbeat detection code remains the same] ...
+
+void initLEDs() {
+    // LED1 (always on)
+    gpio_pin_config_t led1Config = { kGPIO_DigitalOutput, 0 };
+    GPIO_PinInit(LED1_GPIO, LED1_PIN, &led1Config);
+    GPIO_PinWrite(LED1_GPIO, LED1_PIN, 1);  // Turn LED1 on
+    
+    // LED2 (for alert)
+    gpio_pin_config_t led2Config = { kGPIO_DigitalOutput, 0 };
+    GPIO_PinInit(LED2_GPIO, LED2_PIN, &led2Config);
+    GPIO_PinWrite(LED2_GPIO, LED2_PIN, 0);  // Start with LED2 off
+}
+
+void pulseLED2ForDuration(uint32_t milliseconds) {
+    static bool isPulsing = false;
+    static uint32_t pulseStartTime = 0;
+    static uint32_t lastToggleTime = 0;
+    const uint32_t pulseInterval = 250;  // 250ms toggle interval for visible pulsing
+    
+    uint32_t currentTime = TIMER_GetCurrentTimerCount(EXAMPLE_TIMER_PERIPHERAL);
+    
+    if (!isPulsing) {
+        isPulsing = true;
+        pulseStartTime = currentTime;
+        lastToggleTime = currentTime;
+        GPIO_PinWrite(LED2_GPIO, LED2_PIN, 1);  // Start with LED on
+    }
+    
+    // Handle pulsing (toggle every pulseInterval ms)
+    if ((currentTime - lastToggleTime) >= (pulseInterval * (SystemCoreClock / 1000))) {
+        GPIO_TogglePinsOutput(LED2_GPIO, 1u << LED2_PIN);
+        lastToggleTime = currentTime;
+    }
+    
+    // Check if duration has elapsed
+    if ((currentTime - pulseStartTime) >= (milliseconds * (SystemCoreClock / 1000))) {
+        GPIO_PinWrite(LED2_GPIO, LED2_PIN, 0);  // Ensure LED is off
+        isPulsing = false;
+    }
+}
+
+int main(void) {
+    // ... [previous initialization code] ...
+    
+    // Initialize timer for LED pulsing
+    TIMER_Init(EXAMPLE_TIMER_PERIPHERAL, &timerConfig);
+    
+    initLEDs();  // Initialize both LEDs
+    
+    while (1) {
+        if (newDataReady) {
+            newDataReady = false;
+            
+            // ... [previous ADC and BPM calculation code] ...
+            
+            // Check if heart rate exceeds 100 BPM
+            if (bpm > 100) {
+                pulseLED2ForDuration(4000);  // Pulse for 4 seconds (4000ms)
+            }
+            
+            ADC_DoSoftwareTrigger(ADC0, 0);
+        }
+        
+        // Handle LED pulsing in main loop
+        if (isPulsing) {
+            pulseLED2ForDuration(4000);
+        }
+    }
+}
